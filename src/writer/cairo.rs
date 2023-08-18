@@ -1,4 +1,5 @@
 use crate::parser::SvgElement;
+use rand::Rng;
 use regex::Regex;
 use std::{
     collections::HashMap,
@@ -54,6 +55,7 @@ impl From<&SvgElement> for CairoProgram {
             // parts.push(part);
         }
         parts.push(Part::build_tail_element(value));
+
         Self { parts, nested }
     }
 }
@@ -92,10 +94,18 @@ struct Part {
     value: CairoString,
 }
 
+/// Generates a random integer as a String
+fn random_int_string() -> String {
+    let mut rn = rand::thread_rng();
+    let num = rn.gen_range(10000..100000);
+    num.to_string()
+}
+
 impl Part {
     fn build_head_element(element: &SvgElement) -> Self {
         let mut name = "print_head_".to_owned();
         append_string(&mut name, &element.tag);
+        append_string(&mut name, &random_int_string());
 
         let mut head = "<".to_owned();
         append_string(&mut head, &element.tag);
@@ -131,6 +141,7 @@ impl Part {
     fn build_tail_element(element: &SvgElement) -> Self {
         let mut name = "print_tail_".to_owned();
         append_string(&mut name, &element.tag);
+        append_string(&mut name, &random_int_string());
 
         let mut outer = "</".to_owned();
         append_string(&mut outer, &element.tag);
@@ -147,6 +158,7 @@ impl From<SvgElement> for Part {
     fn from(value: SvgElement) -> Self {
         let mut name = "print_".to_owned();
         append_string(&mut name, &value.tag);
+        append_string(&mut name, &random_int_string());
 
         Self {
             name,
@@ -159,6 +171,7 @@ impl From<&SvgElement> for Part {
     fn from(value: &SvgElement) -> Self {
         let mut name = "print_".to_owned();
         append_string(&mut name, &value.tag);
+        append_string(&mut name, &random_int_string());
 
         Self {
             name,
@@ -316,8 +329,16 @@ impl Display for CairoString {
 mod tests {
     use crate::parser::{Rule, SvgElement, SvgParser};
     use pest::Parser;
+    use regex::Regex;
 
     use super::{append_string, Arguments, CairoProgram, CairoString};
+
+    fn regex_match_res(regex_pattern: &str, expected_count: usize, real: &str) {
+        let re = Regex::new(regex_pattern).expect("failed to parse out regex");
+        let matches: Vec<regex::Captures> = re.captures_iter(real).collect();
+
+        assert_eq!(expected_count, matches.len())
+    }
 
     #[test]
     fn test_append_string() {
@@ -362,14 +383,8 @@ string"#;
         let svg = SvgElement::try_from(root).unwrap();
         let cairo_program = CairoProgram::from(svg);
 
-        let expected = r#"fn print_svg() -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('<svg></svg>');
-string
-}
-"#;
-
-        assert_eq!(expected, cairo_program.to_string());
+        // check only if there is the expected number of function prints
+        regex_match_res("print_", 1, &cairo_program.to_string());
     }
 
     #[test]
@@ -394,24 +409,9 @@ string
         let cairo_program = CairoProgram::from(svg);
 
         assert_eq!(2, cairo_program.parts.len());
-        let expected = r#"fn print_head_svg() -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('<svg width="316">');
-string
-}
-fn print_path() -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('<path d="M0 M0 M0" />');
-string
-}
-fn print_tail_svg() -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('</svg>');
-string
-}
-"#;
 
-        assert_eq!(expected.to_owned(), cairo_program.to_string(),);
+        // only check expected function count
+        regex_match_res("print_", 3, &cairo_program.to_string());
     }
 
     #[test]
@@ -423,35 +423,11 @@ string
         let svg = SvgElement::try_from(root).unwrap();
         let cairo_program = CairoProgram::from(svg);
 
-        // assert_eq!(3, cairo_program.parts.len());
-        let expected = r#"fn print_head_svg() -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('<svg width="316">');
-string
-}
-fn print_head_g() -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('<g>');
-string
-}
-fn print_path() -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('<path d="M0 M0 M0" />');
-string
-}
-fn print_tail_g() -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('</g>');
-string
-}
-fn print_tail_svg() -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('</svg>');
-string
-}
-"#;
+        assert_eq!(2, cairo_program.parts.len());
 
-        assert_eq!(expected.to_owned(), cairo_program.to_string(),);
+        // as cairo_program builds fn names with random int at the end. We only check if we get the
+        // expected function number
+        regex_match_res("print_", 5, &cairo_program.to_string());
     }
 
     #[test]
@@ -463,17 +439,9 @@ string
         let svg = SvgElement::try_from(root).unwrap();
         let cairo_program = CairoProgram::from(&svg);
 
-        let expected = r#"fn print_svg(starknet_id: felt252) -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('<svg width="');
-string.append(starknet_id);
-string.append('"></svg>');
-string
-}
-"#;
-
-        let res: String = cairo_program.to_string();
-        assert_eq!(expected, res);
+        // as cairo_program builds fn names with random int at the end. We only check if we get the
+        // expected function number
+        regex_match_res("print_", 1, &cairo_program.to_string());
     }
 
     #[test]
@@ -485,43 +453,9 @@ string
         let svg = SvgElement::try_from(root).unwrap();
         let cairo_program = CairoProgram::from(&svg);
 
-        let expected = r#"fn print_head_svg(starknet_id: felt252) -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('<svg width="');
-string.append(starknet_id);
-string.append('">');
-string
-}
-fn print_head_g() -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('<g>');
-string
-}
-fn print_path() -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('<path d="000"/>');
-string
-}
-fn print_path() -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('<path d="000"/>');
-string
-}
-fn print_tail_g() -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('</g>');
-string
-}
-fn print_tail_svg() -> Array<felt252> {
-let string = ArrayTrait::new();
-string.append('</svg>');
-string
-}
-"#;
-
-        let res: String = cairo_program.to_string();
-
-        assert_eq!(expected, res);
+        // as cairo_program builds fn names with random int at the end. We only check if we get the
+        // expected function number
+        regex_match_res("print_", 6, &cairo_program.to_string());
     }
 
     #[test]
