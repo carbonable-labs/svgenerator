@@ -388,6 +388,17 @@ string"#;
     }
 
     #[test]
+    fn it_ignore_comments() {
+        let input = r#"<svg><!-- should ignore comments --></svg>"#;
+        let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
+        let root = root_pair.next().unwrap();
+        let svg = SvgElement::try_from(root).unwrap();
+        let cairo_program = CairoProgram::from(svg);
+
+        regex_match_res("print_", 1, &cairo_program.to_string());
+    }
+
+    #[test]
     fn test_it_splits_function() {
         let input = r#"<svg><path d="M0 M0 M0" /></svg>"#;
         let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();

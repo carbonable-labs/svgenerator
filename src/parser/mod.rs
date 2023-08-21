@@ -81,6 +81,13 @@ impl TryFrom<Pair<'_, Rule>> for SvgElement {
                             replacement.insert("content".to_owned(), node.as_str().to_owned());
                             continue;
                         }
+                        if Rule::content == node.as_rule() {
+                            replacement.insert("content".to_owned(), node.as_str().to_owned());
+                            continue;
+                        }
+                        if Rule::comment == node.as_rule() {
+                            continue;
+                        }
 
                         let element = SvgElement::try_from(node)?;
                         nodes.push(element);
