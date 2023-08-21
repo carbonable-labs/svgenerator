@@ -7,7 +7,7 @@ use std::{
 };
 
 #[derive(Debug)]
-struct CairoProgram {
+pub struct CairoProgram {
     parts: Vec<Part>,
     nested: Vec<Self>,
 }
@@ -221,7 +221,7 @@ fn append_string(value: &mut String, append: &str) {
 }
 
 #[derive(Debug)]
-struct CairoString {
+pub struct CairoString {
     inner: String,
     arguments: Arguments,
 }

@@ -7,7 +7,7 @@ tag_begin_single = _{ "<" ~ tag ~ attributes ~ "/>" }
 tag_end = _{ ">" | "/>" }
 tag_closing = @{ "</" ~ tag ~ ">" }
 
-tag = { "a" | "animate" | "animateMotion" | "animateTransform" | "circle" | "clipPath" | "defs" | "desc" | "ellipse" | "feBlend" | "feColorMatrix" | "feComponentTransfer" | "feComposite" | "feConvolveMatrix" | "feDiffuseLighting" | "feDisplacementMap" | "feDistantLight" | "feDropShadow" | "feFlood" | "feFuncA" | "feFuncB" | "feFuncG" | "feFuncR" | "feGaussianBlur" | "feImage" | "feMerge" | "feMergeNode" | "feMorphology" | "feOffset" | "fePointLight" | "feSpecularLighting" | "feSpotLight" | "feTile" | "feTurbulence" | "filter" | "foreignObject" | "g" | "hatch" | "hatchpath" | "image" | "line" | "linearGradient" | "marker" | "mask" | "metadata" | "mpath" | "path" | "pattern" | "polygon" | "polyline" | "radialGradient" | "rect" | "script" | "set" | "stop" | "style" | "svg" | "switch" | "symbol" | "text" | "textPath" | "title" | "tspan" | "use" | "view" }
+tag = { "animateTransform" | "animateMotion" | "animate" | "a" | "circle" | "clipPath" | "defs" | "desc" | "ellipse" | "feBlend" | "feColorMatrix" | "feComponentTransfer" | "feComposite" | "feConvolveMatrix" | "feDiffuseLighting" | "feDisplacementMap" | "feDistantLight" | "feDropShadow" | "feFlood" | "feFuncA" | "feFuncB" | "feFuncG" | "feFuncR" | "feGaussianBlur" | "feImage" | "feMergeNode" | "feMerge" | "feMorphology" | "feOffset" | "fePointLight" | "feSpecularLighting" | "feSpotLight" | "feTile" | "feTurbulence" | "filter" | "foreignObject" | "g" | "hatchpath" | "hatch" | "image" | "linearGradient" | "line" | "marker" | "mask" | "metadata" | "mpath" | "path" | "pattern" | "polygon" | "polyline" | "radialGradient" | "rect" | "script" | "set" | "stop" | "style" | "svg" | "switch" | "symbol" | "textPath" | "text" | "title" | "tspan" | "use" | "view" }
 
 content = { (ASCII_ALPHANUMERIC | PUNCTUATION)+ }
 replacement_token = { "@@" ~ (ASCII_ALPHA | "_")+ ~ "@@" }
@@ -16,7 +16,7 @@ children = { ( replacement_token | content ) | single_element+ | nested_element 
 
 attributes = { attribute_item* }
 attribute_item = { attr ~ "=" ~ attr_value }
-attr = { (ASCII_ALPHA+ ~ (":" | "-") ~ ASCII_ALPHA+) | (ASCII_ALPHA+) }
+attr = @{ (letter_or_number+ ~ (":" | "-") ~ letter_or_number+ ~ (":" | "-") ~ letter_or_number+) | (letter_or_number+ ~ (":" | "-") ~ letter_or_number+) | (letter_or_number+) }
 attr_value = _{ "\"" ~ (replacement_token | attr_value_inner) ~ "\"" }
 attr_value_inner = @{ char+ }
 
@@ -25,6 +25,7 @@ char = {
     | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
     | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
 }
+letter_or_number = @{ ASCII_HEX_DIGIT+ | ASCII_ALPHA+ }
 
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 
