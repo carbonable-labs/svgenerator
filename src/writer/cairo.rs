@@ -6,6 +6,74 @@ use std::{
     fmt::{Display, Write},
 };
 
+impl Display for SvgElement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut prelude = String::new();
+        let head = Part::build_head_element(self);
+        let tail = Part::build_tail_element(self);
+        let mut body: Option<Part> = None;
+
+        let mut node_iter = self.nodes.iter();
+        while let Some(node) = node_iter.next() {
+            if !node.nodes.is_empty() {
+                append_string(&mut prelude, node.to_string().as_str());
+                continue;
+            }
+            body = match body {
+                Some(mut b) => {
+                    b.merge(&Part::from(node));
+                    Some(b)
+                }
+                None => Some(Part::from(node)),
+            };
+        }
+
+        // let last_prelude_fn_name = get_last_prelude_fn_name(&prelude);
+        let function_name = get_function_name_from_part(&body);
+        write!(
+            f,
+            r#"{}
+
+{}
+
+fn {}(ref string: Array<felt252>) {{
+{}
+{}
+{}
+}}"#,
+            prelude,
+            body.expect("").to_string(),
+            head.name.to_string(),
+            head.value.to_string(),
+            function_name,
+            tail.value.to_string(),
+        )
+    }
+}
+
+fn get_last_prelude_fn_name(prelude: &str) -> &str {
+    let re = Regex::new("fn (?P<fn_name>print_[^(]*)").expect("failed to parse out regex");
+    let matches: Vec<regex::Captures> = re.captures_iter(prelude).collect();
+    let name = matches
+        .last()
+        .expect("should have fn name")
+        .name("fn_name")
+        .expect("should have matched")
+        .as_str();
+
+    name
+}
+
+fn get_function_name_from_part(part: &Option<Part>) -> String {
+    let mut name = "\t".to_owned();
+    match part {
+        Some(p) => append_string(&mut name, p.name.as_str()),
+        None => (),
+    };
+    append_string(&mut name, "(string);");
+    name
+}
+
 #[derive(Debug)]
 pub struct CairoProgram {
     parts: Vec<Part>,
@@ -30,8 +98,8 @@ impl From<SvgElement> for CairoProgram {
 
         for node in value.nodes.iter() {
             nested.push(CairoProgram::from(node));
-            // parts.push(part);
         }
+
         parts.push(Part::build_tail_element(&value));
 
         Self { parts, nested }
@@ -49,11 +117,13 @@ impl From<&SvgElement> for CairoProgram {
                 nested: vec![],
             };
         }
+
         parts.push(Part::build_head_element(value));
+
         for node in value.nodes.iter() {
             nested.push(CairoProgram::from(node));
-            // parts.push(part);
         }
+
         parts.push(Part::build_tail_element(value));
 
         Self { parts, nested }
@@ -180,6 +250,21 @@ impl From<&SvgElement> for Part {
     }
 }
 
+impl From<Vec<SvgElement>> for Part {
+    fn from(value: Vec<SvgElement>) -> Self {
+        Self {
+            name: "fake".to_owned(),
+            value: CairoString::from(value),
+        }
+    }
+}
+
+impl Part {
+    fn merge(&mut self, rhs: &Self) {
+        self.value = self.value.merge(&rhs.value);
+    }
+}
+
 // Turn [`Arguments`] into a cairo function argument string
 // * `args` - [`&Arguments`]
 //
@@ -200,10 +285,15 @@ impl Display for Part {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            r#"fn {}({}) -> Array<felt252> {{
+            r#"fn {}(ref string: Array<felt252>{}{}) {{
 {}
 }}"#,
             &self.name,
+            if 0 == self.value.arguments.0.len() {
+                ""
+            } else {
+                ", "
+            },
             format_arguments(&self.value.arguments),
             self.value.to_string(),
         )
@@ -224,6 +314,16 @@ fn append_string(value: &mut String, append: &str) {
 pub struct CairoString {
     inner: String,
     arguments: Arguments,
+}
+impl CairoString {
+    fn merge(&self, rhs: &CairoString) -> CairoString {
+        let mut inner = self.inner.to_string();
+        append_string(&mut inner, &rhs.inner);
+        Self {
+            inner: inner.to_string(),
+            arguments: Arguments::from(inner.as_str()),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -285,9 +385,24 @@ impl From<String> for CairoString {
     }
 }
 
+impl From<Vec<SvgElement>> for CairoString {
+    fn from(value: Vec<SvgElement>) -> Self {
+        let elements = value
+            .iter()
+            .map(|e| e.outer.as_str())
+            .collect::<Vec<&str>>()
+            .join("")
+            .to_string();
+        Self {
+            inner: elements.to_owned(),
+            arguments: Arguments::from(elements.as_str()),
+        }
+    }
+}
+
 impl Display for CairoString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut head = String::from("let string = ArrayTrait::new();\n");
+        let mut head = String::from("");
 
         // replace all tokens with a special char to split string at.
         // add new line with string.append(var);
@@ -308,8 +423,9 @@ impl Display for CairoString {
 
         for part in str_with_args.iter() {
             let str_chars = part.chars().collect::<Vec<char>>();
-            for str in str_chars.as_slice().chunks(32) {
-                head.extend("string.append(".chars());
+            let mut str_iter = str_chars.as_slice().chunks(31).peekable();
+            while let Some(str) = str_iter.next() {
+                head.extend("\tstring.append(".chars());
                 if !arg_names.contains(part) {
                     head.extend(['\'']);
                 }
@@ -317,10 +433,12 @@ impl Display for CairoString {
                 if !arg_names.contains(part) {
                     head.extend(['\'']);
                 }
-                head.extend([')', ';', '\n'])
+                head.extend([')', ';']);
+                if !str_iter.peek().is_none() {
+                    head.extend(['\n']);
+                }
             }
         }
-        head.extend(['s', 't', 'r', 'i', 'n', 'g']);
         f.write_str(&head)
     }
 }
@@ -331,7 +449,7 @@ mod tests {
     use pest::Parser;
     use regex::Regex;
 
-    use super::{append_string, Arguments, CairoProgram, CairoString};
+    use super::{append_string, Arguments, CairoProgram, CairoString, Part};
 
     fn regex_match_res(regex_pattern: &str, expected_count: usize, real: &str) {
         let re = Regex::new(regex_pattern).expect("failed to parse out regex");
@@ -363,13 +481,7 @@ mod tests {
         let input = r#"<svg width="316" height="360" viewBox="0 0 316 360" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"></svg>"#;
 
         let cairo_string = CairoString::from(input);
-        let expected = r#"let string = ArrayTrait::new();
-string.append('<svg width="316" height="360" vi');
-string.append('ewBox="0 0 316 360" fill="none" ');
-string.append('xmlns="http://www.w3.org/2000/sv');
-string.append('g" xmlns:xlink="http://www.w3.or');
-string.append('g/1999/xlink"></svg>');
-string"#;
+        let expected = "\tstring.append('<svg width=\"316\" height=\"360\" v');\n\tstring.append('iewBox=\"0 0 316 360\" fill=\"none');\n\tstring.append('\" xmlns=\"http://www.w3.org/2000');\n\tstring.append('/svg\" xmlns:xlink=\"http://www.w');\n\tstring.append('3.org/1999/xlink\"></svg>');";
 
         assert_eq!(expected, cairo_string.to_string());
     }
@@ -501,12 +613,43 @@ string"#;
     fn test_cairo_string_with_arguments() {
         let input = r#"<svg width="@@starknet_id@@"></svg>"#;
         let cairo_string = CairoString::from(input);
-        let expected = r#"let string = ArrayTrait::new();
-string.append('<svg width="');
-string.append(starknet_id);
-string.append('"></svg>');
-string"#;
+        let expected = "\tstring.append('<svg width=\"');\tstring.append(starknet_id);\tstring.append('\"></svg>');";
 
         assert_eq!(expected, cairo_string.to_string());
+    }
+
+    #[test]
+    fn test_part_can_be_built_from_vec_svg_elements() {
+        let input1 = r#"<path d="M0 M0 M0" />"#;
+        let mut root_pair = SvgParser::parse(Rule::single_element, input1).unwrap();
+        let root = root_pair.next().unwrap();
+
+        let svg1 = SvgElement::try_from(root).unwrap();
+
+        let input2 = r#"<path d="M1 M1 M1" />"#;
+        let mut root_pair2 = SvgParser::parse(Rule::single_element, input2).unwrap();
+        let root2 = root_pair2.next().unwrap();
+
+        let svg2 = SvgElement::try_from(root2).unwrap();
+
+        let svgs = vec![svg1, svg2];
+
+        let parts = Part::from(svgs);
+
+        let expected = "fn fake(ref string: Array<felt252>) {\n\tstring.append('<path d=\"M0 M0 M0\" /><path d=\"M');\n\tstring.append('1 M1 M1\" />');\n}";
+
+        assert_eq!(expected, parts.to_string());
+    }
+
+    #[test]
+    fn test_it_nest_only_g_and_svg() {
+        let input = r#"<svg><g><path d="0 0 0" /><path d="0 0 0" /></g><path d="2 2 2" /><path d="3 3 3" /><text>Test</text><defs><filter /></defs></svg>"#;
+
+        let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
+        let root = root_pair.next().unwrap();
+
+        let svg = SvgElement::try_from(root).unwrap();
+
+        println!("{}", svg.to_string());
     }
 }

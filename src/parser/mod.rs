@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use pest::iterators::Pair;
 use pest_derive::Parser;
