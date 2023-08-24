@@ -46,7 +46,11 @@ fn {}(ref string: Array<felt252>) {{
 {}
 }}"#,
             prelude,
-            body.unwrap_or(Part::default()).to_string(),
+            if let Some(b) = body {
+                b.to_string()
+            } else {
+                "".to_string()
+            },
             head.name.to_string(),
             head.value.to_string(),
             print_function_call(&parts_order, &function_name),
@@ -278,15 +282,6 @@ impl From<&SvgElement> for Part {
         Self {
             name,
             value: CairoString::from(value.outer.to_owned()),
-        }
-    }
-}
-
-impl From<Vec<SvgElement>> for Part {
-    fn from(value: Vec<SvgElement>) -> Self {
-        Self {
-            name: "fake".to_owned(),
-            value: CairoString::from(value),
         }
     }
 }
@@ -544,45 +539,48 @@ mod tests {
 
     #[test]
     fn test_it_splits_function() {
-        let input = r#"<svg><path d="M0 M0 M0" /></svg>"#;
-        let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
-        let root = root_pair.next().unwrap();
-
-        let svg = SvgElement::try_from(root).unwrap();
-        let cairo_program = CairoProgram::from(svg);
-
-        assert_eq!(2, cairo_program.parts.len());
+        assert_eq!(false, true);
+        // let input = r#"<svg><path d="M0 M0 M0" /></svg>"#;
+        // let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
+        // let root = root_pair.next().unwrap();
+        //
+        // let svg = SvgElement::try_from(root).unwrap();
+        // let cairo_program = CairoProgram::from(svg);
+        //
+        // assert_eq!(2, cairo_program.parts.len());
     }
 
     #[test]
     fn test_it_adds_attributes() {
-        let input = r#"<svg width="316"><path d="M0 M0 M0" /></svg>"#;
-        let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
-        let root = root_pair.next().unwrap();
-
-        let svg = SvgElement::try_from(root).unwrap();
-        let cairo_program = CairoProgram::from(svg);
-
-        assert_eq!(2, cairo_program.parts.len());
-
-        // only check expected function count
-        regex_match_res("print_", 3, &cairo_program.to_string());
+        assert_eq!(false, true);
+        // let input = r#"<svg width="316"><path d="M0 M0 M0" /></svg>"#;
+        // let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
+        // let root = root_pair.next().unwrap();
+        //
+        // let svg = SvgElement::try_from(root).unwrap();
+        // let cairo_program = CairoProgram::from(svg);
+        //
+        // assert_eq!(2, cairo_program.parts.len());
+        //
+        // // only check expected function count
+        // regex_match_res("print_", 3, &cairo_program.to_string());
     }
 
     #[test]
     fn test_nested_tree() {
-        let input = r#"<svg width="316"><g><path d="M0 M0 M0" /></g></svg>"#;
-        let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
-        let root = root_pair.next().unwrap();
-
-        let svg = SvgElement::try_from(root).unwrap();
-        let cairo_program = CairoProgram::from(svg);
-
-        assert_eq!(2, cairo_program.parts.len());
-
-        // as cairo_program builds fn names with random int at the end. We only check if we get the
-        // expected function number
-        regex_match_res("print_", 5, &cairo_program.to_string());
+        assert_eq!(false, true);
+        // let input = r#"<svg width="316"><g><path d="M0 M0 M0" /></g></svg>"#;
+        // let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
+        // let root = root_pair.next().unwrap();
+        //
+        // let svg = SvgElement::try_from(root).unwrap();
+        // let cairo_program = CairoProgram::from(svg);
+        //
+        // assert_eq!(2, cairo_program.parts.len());
+        //
+        // // as cairo_program builds fn names with random int at the end. We only check if we get the
+        // // expected function number
+        // regex_match_res("print_", 5, &cairo_program.to_string());
     }
 
     #[test]
@@ -601,16 +599,17 @@ mod tests {
 
     #[test]
     fn test_it_can_add_arguments_with_nested_tree() {
-        let input = r#"<svg width="@@starknet_id@@"><g><path d="000"/><path d="000"/></g></svg>"#;
-        let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
-        let root = root_pair.next().unwrap();
-
-        let svg = SvgElement::try_from(root).unwrap();
-        let cairo_program = CairoProgram::from(&svg);
-
-        // as cairo_program builds fn names with random int at the end. We only check if we get the
-        // expected function number
-        regex_match_res("print_", 6, &cairo_program.to_string());
+        assert_eq!(false, true);
+        // let input = r#"<svg width="@@starknet_id@@"><g><path d="000"/><path d="000"/></g></svg>"#;
+        // let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
+        // let root = root_pair.next().unwrap();
+        //
+        // let svg = SvgElement::try_from(root).unwrap();
+        // let cairo_program = CairoProgram::from(&svg);
+        //
+        // // as cairo_program builds fn names with random int at the end. We only check if we get the
+        // // expected function number
+        // regex_match_res("print_", 6, &cairo_program.to_string());
     }
 
     #[test]
@@ -651,29 +650,6 @@ mod tests {
     }
 
     #[test]
-    fn test_part_can_be_built_from_vec_svg_elements() {
-        let input1 = r#"<path d="M0 M0 M0" />"#;
-        let mut root_pair = SvgParser::parse(Rule::single_element, input1).unwrap();
-        let root = root_pair.next().unwrap();
-
-        let svg1 = SvgElement::try_from(root).unwrap();
-
-        let input2 = r#"<path d="M1 M1 M1" />"#;
-        let mut root_pair2 = SvgParser::parse(Rule::single_element, input2).unwrap();
-        let root2 = root_pair2.next().unwrap();
-
-        let svg2 = SvgElement::try_from(root2).unwrap();
-
-        let svgs = vec![svg1, svg2];
-
-        let parts = Part::from(svgs);
-
-        let expected = "fn fake(ref string: Array<felt252>) {\n\tstring.append('<path d=\"M0 M0 M0\" /><path d=\"M');\n\tstring.append('1 M1 M1\" />');\n}";
-
-        assert_eq!(expected, parts.to_string());
-    }
-
-    #[test]
     fn test_it_nest_only_g_and_svg() {
         let input = r#"<svg><g><path d="0 0 0" /><path d="0 0 0" /></g><path d="2 2 2" /><path d="3 3 3" /><text>Test</text><defs><filter /></defs></svg>"#;
 
@@ -681,7 +657,6 @@ mod tests {
         let root = root_pair.next().unwrap();
 
         let svg = SvgElement::try_from(root).unwrap();
-
-        println!("{}", svg.to_string());
+        println!("{}", svg);
     }
 }

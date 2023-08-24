@@ -89,8 +89,10 @@ impl TryFrom<Pair<'_, Rule>> for SvgElement {
                             continue;
                         }
 
-                        let element = SvgElement::try_from(node)?;
-                        nodes.push(element);
+                        if node_has_children_to_nest(&node)? {
+                            let element = SvgElement::try_from(node)?;
+                            nodes.push(element);
+                        }
                     }
                 }
                 _ => (),
@@ -105,6 +107,25 @@ impl TryFrom<Pair<'_, Rule>> for SvgElement {
             nodes,
         })
     }
+}
+
+/// Go further into node children to check if any descendent
+/// is matching the group rule. [g, defs, filter,]
+/// * node - [`&Pair<Rule>`] - parsed pair
+///
+fn node_has_children_to_nest(node: &Pair<Rule>) -> Result<bool, SvgElementError> {
+    let rule = node.as_rule();
+    let tag = node
+        .clone()
+        .into_inner()
+        .next()
+        .ok_or(SvgElementError::NoTag)?;
+
+    if Rule::nested_element == rule && ["svg", "g", "defs", "filter"].contains(&tag.as_str()) {
+        return Ok(true);
+    }
+
+    Ok(false)
 }
 
 #[cfg(test)]
@@ -190,46 +211,94 @@ mod tests {
 
     #[test]
     fn it_converts_nested_tree_into_elements() {
-        let input = r#"<svg><g><path id="first-child" /><path id="last-child" /></g></svg>"#;
-        let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
-        let root = root_pair.next().unwrap();
-
-        let svg = SvgElement::try_from(root).unwrap();
-        assert_eq!(&svg.tag, "svg");
-        assert_eq!(svg.attributes.len(), 0);
-        assert_eq!(svg.nodes.len(), 1);
-        assert_eq!(&svg.outer, input);
-        let inner = &svg.nodes[0];
-        assert_eq!(&inner.tag, "g");
-        assert_eq!(inner.nodes.len(), 2);
+        assert_eq!(false, true);
+        // let input = r#"<svg><g><path id="first-child" /><path id="last-child" /></g></svg>"#;
+        // let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
+        // let root = root_pair.next().unwrap();
+        //
+        // let svg = SvgElement::try_from(root).unwrap();
+        // assert_eq!(&svg.tag, "svg");
+        // assert_eq!(svg.attributes.len(), 0);
+        // assert_eq!(svg.nodes.len(), 1);
+        // assert_eq!(&svg.outer, input);
+        // let inner = &svg.nodes[0];
+        // assert_eq!(&inner.tag, "g");
+        // assert_eq!(inner.nodes.len(), 2);
     }
 
     #[test]
     fn it_can_parse_replacement_token() {
-        let input = r#"<svg><g><path id="@@replace_me@@" /></g></svg>"#;
-        let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
-        let root = root_pair.next().unwrap();
-
-        let svg = SvgElement::try_from(root).unwrap();
-        let first_node = &svg.nodes[0].nodes[0];
-        assert_eq!(1, first_node.replacement.len());
-        assert_eq!(0, first_node.attributes.len())
+        assert_eq!(false, true);
+        // let input = r#"<svg><g><path id="@@replace_me@@" /></g></svg>"#;
+        // let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
+        // let root = root_pair.next().unwrap();
+        //
+        // let svg = SvgElement::try_from(root).unwrap();
+        // let first_node = &svg.nodes[0].nodes[0];
+        // assert_eq!(1, first_node.replacement.len());
+        // assert_eq!(0, first_node.attributes.len())
     }
 
     #[test]
     fn it_can_parse_replacement_token_in_content() {
-        let input = r#"<svg><path id="@@replace_me@@" /><text>@@replace_text@@</text></svg>"#;
-        let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
+        assert_eq!(false, true);
+        // let input = r#"<svg><path id="@@replace_me@@" /><text>@@replace_text@@</text></svg>"#;
+        // let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
+        // let root = root_pair.next().unwrap();
+        //
+        // let svg = SvgElement::try_from(root).unwrap();
+        // let text_node = &svg.nodes[1];
+        //
+        // assert_eq!(1, text_node.replacement.len());
+        // assert_eq!(0, text_node.attributes.len());
+        // assert_eq!(
+        //     &"@@replace_text@@".to_owned(),
+        //     text_node.replacement.get("content").unwrap()
+        // );
+    }
+
+    #[test]
+    fn it_recurse_only_g() {
+        let input = r#"<svg>
+            <path id="@@replace_me@@" />
+            <text>@@replace_text@@</text>
+            <g>
+            <text>
+            <tspan>Test1</tspan>
+            </text>
+            <text>
+            <tspan>Test2</tspan>
+            </text>
+            <text>
+            <tspan>Test3</tspan>
+            </text>
+            <g>
+            <text>
+            <tspan>Some nested text</tspan>
+            </text>
+            <g>
+            <text>
+            <tspan>Some nest inside nest</tspan>
+            </text>
+            </g>
+            </g>
+            </g>
+            <defs>
+            <filter id="e" width="304" height="69" x="6" y="231" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feFlood flood-opacity="0" result="BackgroundImageFix" />
+      <feColorMatrix in="SourceAlpha" result="hardAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" />
+      <feOffset dy="8" />
+      <feGaussianBlur stdDeviation="3" />
+      <feComposite in2="hardAlpha" operator="out" />
+      <feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0" />
+    </filter>
+            </defs>
+            </svg>"#.replace("\n", "");
+        let mut root_pair = SvgParser::parse(Rule::root, &input).unwrap();
         let root = root_pair.next().unwrap();
 
         let svg = SvgElement::try_from(root).unwrap();
-        let text_node = &svg.nodes[1];
 
-        assert_eq!(1, text_node.replacement.len());
-        assert_eq!(0, text_node.attributes.len());
-        assert_eq!(
-            &"@@replace_text@@".to_owned(),
-            text_node.replacement.get("content").unwrap()
-        );
+        println!("{}", svg.to_string());
     }
 }
