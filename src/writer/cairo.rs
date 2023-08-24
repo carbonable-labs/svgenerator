@@ -2,7 +2,7 @@ use crate::parser::SvgElement;
 use rand::Rng;
 use regex::Regex;
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fmt::{Display, Write},
 };
 
@@ -12,13 +12,18 @@ impl Display for SvgElement {
         let head = Part::build_head_element(self);
         let tail = Part::build_tail_element(self);
         let mut body: Option<Part> = None;
+        let mut parts_order: BTreeMap<usize, String> = BTreeMap::new();
 
-        let mut node_iter = self.nodes.iter();
-        while let Some(node) = node_iter.next() {
+        let mut node_iter = self.nodes.iter().enumerate();
+        while let Some((i, node)) = node_iter.next() {
             if !node.nodes.is_empty() {
-                append_string(&mut prelude, node.to_string().as_str());
+                let node_str = node.to_string();
+                let prelude_fn_name = get_last_prelude_fn_name(&node_str);
+                parts_order.insert(i, prelude_fn_name.to_owned());
+                append_string(&mut prelude, &node_str);
                 continue;
             }
+            parts_order.insert(i, "body".to_string());
             body = match body {
                 Some(mut b) => {
                     b.merge(&Part::from(node));
@@ -28,7 +33,6 @@ impl Display for SvgElement {
             };
         }
 
-        // let last_prelude_fn_name = get_last_prelude_fn_name(&prelude);
         let function_name = get_function_name_from_part(&body);
         write!(
             f,
@@ -42,10 +46,10 @@ fn {}(ref string: Array<felt252>) {{
 {}
 }}"#,
             prelude,
-            body.expect("").to_string(),
+            body.unwrap_or(Part::default()).to_string(),
             head.name.to_string(),
             head.value.to_string(),
-            function_name,
+            print_function_call(&parts_order, &function_name),
             tail.value.to_string(),
         )
     }
@@ -65,13 +69,41 @@ fn get_last_prelude_fn_name(prelude: &str) -> &str {
 }
 
 fn get_function_name_from_part(part: &Option<Part>) -> String {
-    let mut name = "\t".to_owned();
+    let mut name = "".to_owned();
     match part {
         Some(p) => append_string(&mut name, p.name.as_str()),
         None => (),
     };
-    append_string(&mut name, "(string);");
     name
+}
+
+fn print_function_call(fn_order: &BTreeMap<usize, String>, fn_name: &str) -> String {
+    let mut function_call = String::new();
+    for (_, v) in fn_order
+        .into_iter()
+        .fold(BTreeMap::new(), |mut acc, (k, v)| {
+            if !acc.contains_key(v) {
+                acc.insert(v, k);
+                acc
+            } else {
+                acc
+            }
+        })
+        .into_iter()
+        .fold(BTreeMap::new(), |mut acc, (v, k)| {
+            acc.insert(k, v);
+            acc
+        })
+    {
+        append_string(&mut function_call, "\n\t");
+        append_string(
+            &mut function_call,
+            if "body" != v { v.as_str() } else { fn_name },
+        );
+        append_string(&mut function_call, "(string);");
+    }
+
+    function_call
 }
 
 #[derive(Debug)]
@@ -158,7 +190,7 @@ impl Display for CairoProgram {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct Part {
     name: String,
     value: CairoString,
@@ -310,7 +342,7 @@ fn append_string(value: &mut String, append: &str) {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CairoString {
     inner: String,
     arguments: Arguments,

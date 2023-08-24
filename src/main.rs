@@ -42,13 +42,9 @@ fn handle_file<P: AsRef<Path>>(path: P, writer: impl Writer) -> anyhow::Result<(
     let mut parsed = SvgParser::parse(parser::Rule::root, &unparsed_file).unwrap();
     let document = parsed.next().unwrap();
     let svg = SvgElement::try_from(document).unwrap();
-    let cairo_program = CairoProgram::from(svg);
-
-    let program = cairo_program.to_string();
-    println!("{:#?}", program);
 
     let name = handle_file_name(path.as_ref().as_os_str().to_str().unwrap());
-    let _ = writer.write(&name, &program)?;
+    let _ = writer.write(&name, svg.to_string().as_str())?;
 
     Ok(())
 }
