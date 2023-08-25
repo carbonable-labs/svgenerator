@@ -213,30 +213,11 @@ impl Part {
         append_string(&mut name, &element.tag);
         append_string(&mut name, &random_int_string());
 
-        let mut head = "<".to_owned();
-        append_string(&mut head, &element.tag);
-
-        let mut attributes = String::new();
-        for (key, value) in element.attributes.iter() {
-            append_string(&mut attributes, " ");
-            append_string(&mut attributes, &key);
-            append_string(&mut attributes, "=\"");
-            append_string(&mut attributes, &value);
-            append_string(&mut attributes, "\"");
-        }
-
-        let mut replacements = String::new();
-        for (key, value) in element.replacement.iter() {
-            append_string(&mut replacements, " ");
-            append_string(&mut replacements, &key);
-            append_string(&mut replacements, "=\"");
-            append_string(&mut replacements, &value);
-            append_string(&mut replacements, "\"");
-        }
-
-        append_string(&mut head, &replacements);
-        append_string(&mut head, &attributes);
-        append_string(&mut head, ">");
+        let head = element
+            .outer
+            .split("{inner_nodes}")
+            .next()
+            .expect("should be splittable into two parts");
 
         Self {
             name,
@@ -249,13 +230,15 @@ impl Part {
         append_string(&mut name, &element.tag);
         append_string(&mut name, &random_int_string());
 
-        let mut outer = "</".to_owned();
-        append_string(&mut outer, &element.tag);
-        append_string(&mut outer, ">");
+        let tail = element
+            .outer
+            .split("{inner_nodes}")
+            .last()
+            .expect("should be splittable into two parts");
 
         Self {
             name,
-            value: CairoString::from(outer.to_owned()),
+            value: CairoString::from(tail.to_owned()),
         }
     }
 }
@@ -448,10 +431,16 @@ impl Display for CairoString {
         let str_part = &self.inner[last_pos..];
         str_with_args.push(str_part.to_string());
 
-        for part in str_with_args.iter() {
+        for (i, part) in str_with_args.iter().enumerate() {
+            if 0 != i {
+                head.extend(['\n']);
+            }
             let str_chars = part.chars().collect::<Vec<char>>();
-            let mut str_iter = str_chars.as_slice().chunks(31).peekable();
-            while let Some(str) = str_iter.next() {
+            let mut str_iter = str_chars.as_slice().chunks(31).enumerate();
+            while let Some((i, str)) = str_iter.next() {
+                if 0 != i {
+                    head.extend(['\n']);
+                }
                 head.extend("\tstring.append(".chars());
                 if !arg_names.contains(part) {
                     head.extend(['\'']);
@@ -461,9 +450,6 @@ impl Display for CairoString {
                     head.extend(['\'']);
                 }
                 head.extend([')', ';']);
-                if !str_iter.peek().is_none() {
-                    head.extend(['\n']);
-                }
             }
         }
         f.write_str(&head)
@@ -476,7 +462,7 @@ mod tests {
     use pest::Parser;
     use regex::Regex;
 
-    use super::{append_string, Arguments, CairoProgram, CairoString, Part};
+    use super::{append_string, Arguments, CairoProgram, CairoString};
 
     fn regex_match_res(regex_pattern: &str, expected_count: usize, real: &str) {
         let re = Regex::new(regex_pattern).expect("failed to parse out regex");
@@ -520,10 +506,9 @@ mod tests {
         let root = root_pair.next().unwrap();
 
         let svg = SvgElement::try_from(root).unwrap();
-        let cairo_program = CairoProgram::from(svg);
 
         // check only if there is the expected number of function prints
-        regex_match_res("print_", 1, &cairo_program.to_string());
+        regex_match_res("print_", 1, &svg.to_string());
     }
 
     #[test]
@@ -532,55 +517,35 @@ mod tests {
         let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
         let root = root_pair.next().unwrap();
         let svg = SvgElement::try_from(root).unwrap();
-        let cairo_program = CairoProgram::from(svg);
 
-        regex_match_res("print_", 1, &cairo_program.to_string());
-    }
-
-    #[test]
-    fn test_it_splits_function() {
-        assert_eq!(false, true);
-        // let input = r#"<svg><path d="M0 M0 M0" /></svg>"#;
-        // let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
-        // let root = root_pair.next().unwrap();
-        //
-        // let svg = SvgElement::try_from(root).unwrap();
-        // let cairo_program = CairoProgram::from(svg);
-        //
-        // assert_eq!(2, cairo_program.parts.len());
+        regex_match_res("print_", 1, &svg.to_string());
     }
 
     #[test]
     fn test_it_adds_attributes() {
-        assert_eq!(false, true);
-        // let input = r#"<svg width="316"><path d="M0 M0 M0" /></svg>"#;
-        // let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
-        // let root = root_pair.next().unwrap();
-        //
-        // let svg = SvgElement::try_from(root).unwrap();
-        // let cairo_program = CairoProgram::from(svg);
-        //
-        // assert_eq!(2, cairo_program.parts.len());
-        //
-        // // only check expected function count
-        // regex_match_res("print_", 3, &cairo_program.to_string());
+        let input = r#"<svg width="316"><path d="M0 M0 M0" /></svg>"#;
+        let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
+        let root = root_pair.next().unwrap();
+
+        let svg = SvgElement::try_from(root).unwrap();
+
+        // only check expected function count
+        regex_match_res("print_", 1, &svg.to_string());
     }
 
     #[test]
     fn test_nested_tree() {
-        assert_eq!(false, true);
-        // let input = r#"<svg width="316"><g><path d="M0 M0 M0" /></g></svg>"#;
-        // let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
-        // let root = root_pair.next().unwrap();
-        //
-        // let svg = SvgElement::try_from(root).unwrap();
-        // let cairo_program = CairoProgram::from(svg);
-        //
-        // assert_eq!(2, cairo_program.parts.len());
-        //
-        // // as cairo_program builds fn names with random int at the end. We only check if we get the
-        // // expected function number
-        // regex_match_res("print_", 5, &cairo_program.to_string());
+        let input = r#"<svg width="316"><g><path d="M0 M0 M0" /></g></svg>"#;
+        let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
+        let root = root_pair.next().unwrap();
+
+        let svg = SvgElement::try_from(root).unwrap();
+
+        assert_eq!(1, svg.nodes.len());
+
+        // as cairo_program builds fn names with random int at the end. We only check if we get the
+        // expected function number
+        regex_match_res("print_", 3, &svg.to_string());
     }
 
     #[test]
@@ -599,17 +564,15 @@ mod tests {
 
     #[test]
     fn test_it_can_add_arguments_with_nested_tree() {
-        assert_eq!(false, true);
-        // let input = r#"<svg width="@@starknet_id@@"><g><path d="000"/><path d="000"/></g></svg>"#;
-        // let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
-        // let root = root_pair.next().unwrap();
-        //
-        // let svg = SvgElement::try_from(root).unwrap();
-        // let cairo_program = CairoProgram::from(&svg);
-        //
-        // // as cairo_program builds fn names with random int at the end. We only check if we get the
-        // // expected function number
-        // regex_match_res("print_", 6, &cairo_program.to_string());
+        let input = r#"<svg width="@@starknet_id@@"><g><path d="000"/><path d="000"/></g></svg>"#;
+        let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
+        let root = root_pair.next().unwrap();
+
+        let svg = SvgElement::try_from(root).unwrap();
+
+        // as cairo_program builds fn names with random int at the end. We only check if we get the
+        // expected function number
+        regex_match_res("print_", 3, &svg.to_string());
     }
 
     #[test]
@@ -644,7 +607,7 @@ mod tests {
     fn test_cairo_string_with_arguments() {
         let input = r#"<svg width="@@starknet_id@@"></svg>"#;
         let cairo_string = CairoString::from(input);
-        let expected = "\tstring.append('<svg width=\"');\tstring.append(starknet_id);\tstring.append('\"></svg>');";
+        let expected = "\tstring.append('<svg width=\"');\n\tstring.append(starknet_id);\n\tstring.append('\"></svg>');";
 
         assert_eq!(expected, cairo_string.to_string());
     }
@@ -657,6 +620,7 @@ mod tests {
         let root = root_pair.next().unwrap();
 
         let svg = SvgElement::try_from(root).unwrap();
-        println!("{}", svg);
+
+        assert_eq!(2, svg.nodes.len());
     }
 }

@@ -6,7 +6,7 @@ use std::{
 use pest::Parser;
 
 use crate::parser::{SvgElement, SvgParser};
-use crate::writer::{cairo::CairoProgram, ConsoleWriter, FileWriter, Writer};
+use crate::writer::{ConsoleWriter, FileWriter, Writer};
 
 mod parser;
 mod writer;
@@ -38,7 +38,10 @@ fn main() -> anyhow::Result<()> {
 
 /// Handle inputed files
 fn handle_file<P: AsRef<Path>>(path: P, writer: impl Writer) -> anyhow::Result<()> {
-    let unparsed_file = read_to_string(&path).expect("cannot read file");
+    let unparsed_file = read_to_string(&path)
+        .expect("cannot read file")
+        .replace("\n", "")
+        .replace("    ", "");
     let mut parsed = SvgParser::parse(parser::Rule::root, &unparsed_file).unwrap();
     let document = parsed.next().unwrap();
     let svg = SvgElement::try_from(document).unwrap();
