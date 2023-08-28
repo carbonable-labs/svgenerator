@@ -1,113 +1,86 @@
 use crate::parser::SvgElement;
+use itertools::Itertools;
 use rand::Rng;
 use regex::Regex;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     fmt::{Display, Write},
 };
 
 impl Display for SvgElement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut prelude = String::new();
+        let parts: Vec<CairoString> = self
+            .outer
+            .split("{inner_nodes}")
+            .map(|p| CairoString::from(p))
+            .collect();
         let head = Part::build_head_element(self);
-        let tail = Part::build_tail_element(self);
-        let mut body: Option<Part> = None;
-        let mut parts_order: BTreeMap<usize, String> = BTreeMap::new();
+        let mut body = Vec::new();
 
-        let mut node_iter = self.nodes.iter().enumerate();
-        while let Some((i, node)) = node_iter.next() {
+        let mut node_iter = self.nodes.iter();
+        while let Some(node) = node_iter.next() {
             if !node.nodes.is_empty() {
                 let node_str = node.to_string();
-                let prelude_fn_name = get_last_prelude_fn_name(&node_str);
-                parts_order.insert(i, prelude_fn_name.to_owned());
                 append_string(&mut prelude, &node_str);
                 continue;
             }
-            parts_order.insert(i, "body".to_string());
-            body = match body {
-                Some(mut b) => {
-                    b.merge(&Part::from(node));
-                    Some(b)
-                }
-                None => Some(Part::from(node)),
-            };
+            body.push(Part::from(node));
         }
 
         let function_name = get_function_name_from_part(&body);
+
         write!(
             f,
             r#"{}
 
 {}
 
-fn {}(ref string: Array<felt252>) {{
-{}
-{}
+fn {}(ref string: Array<felt252>{}) {{
 {}
 }}"#,
             prelude,
-            if let Some(b) = body {
-                b.to_string()
-            } else {
-                "".to_string()
-            },
+            body.iter()
+                .map(|p| p.to_string())
+                .collect::<Vec<String>>()
+                .join("\n"),
             head.name.to_string(),
-            head.value.to_string(),
-            print_function_call(&parts_order, &function_name),
-            tail.value.to_string(),
+            print_function_required_arguments(parts.as_slice(), body.as_slice()),
+            print_function_call(parts.as_slice(), function_name.as_slice()),
         )
     }
 }
 
-fn get_last_prelude_fn_name(prelude: &str) -> &str {
-    let re = Regex::new("fn (?P<fn_name>print_[^(]*)").expect("failed to parse out regex");
-    let matches: Vec<regex::Captures> = re.captures_iter(prelude).collect();
-    let name = matches
-        .last()
-        .expect("should have fn name")
-        .name("fn_name")
-        .expect("should have matched")
-        .as_str();
-
-    name
+fn get_function_name_from_part(part: &Vec<Part>) -> Vec<String> {
+    part.iter()
+        .map(|p| p.print_function_call().to_owned())
+        .collect()
 }
 
-fn get_function_name_from_part(part: &Option<Part>) -> String {
-    let mut name = "".to_owned();
-    match part {
-        Some(p) => append_string(&mut name, p.name.as_str()),
-        None => (),
-    };
-    name
+fn print_function_call(parts: &[CairoString], fn_name: &[String]) -> String {
+    let str_parts: Vec<String> = parts.iter().map(|p| p.to_string()).collect();
+    let fn_calls: Vec<String> = fn_name.iter().map(|f| format!("\t{}", f)).collect();
+    let calls = str_parts.into_iter().interleave(fn_calls);
+    calls.collect::<Vec<String>>().join("\n")
 }
 
-fn print_function_call(fn_order: &BTreeMap<usize, String>, fn_name: &str) -> String {
-    let mut function_call = String::new();
-    for (_, v) in fn_order
-        .into_iter()
-        .fold(BTreeMap::new(), |mut acc, (k, v)| {
-            if !acc.contains_key(v) {
-                acc.insert(v, k);
-                acc
-            } else {
-                acc
-            }
-        })
-        .into_iter()
-        .fold(BTreeMap::new(), |mut acc, (v, k)| {
-            acc.insert(k, v);
-            acc
-        })
-    {
-        append_string(&mut function_call, "\n\t");
-        append_string(
-            &mut function_call,
-            if "body" != v { v.as_str() } else { fn_name },
-        );
-        append_string(&mut function_call, "(string);");
+fn print_function_required_arguments(parts: &[CairoString], body: &[Part]) -> String {
+    let parts_args: Vec<String> = parts
+        .iter()
+        .map(|p| format_arguments(&p.arguments))
+        .filter(|v| !v.is_empty())
+        .collect();
+    let body_args: Vec<String> = body
+        .iter()
+        .map(|p| format_arguments(&p.value.arguments))
+        .filter(|v| !v.is_empty())
+        .collect();
+
+    let merged_parts: Vec<String> = parts_args.into_iter().interleave(body_args).collect();
+    if 0 < merged_parts.len() {
+        return format!(", {}", merged_parts.join(", "));
     }
-
-    function_call
+    "".to_owned()
 }
 
 #[derive(Debug)]
@@ -241,6 +214,19 @@ impl Part {
             value: CairoString::from(tail.to_owned()),
         }
     }
+
+    fn print_function_call(&self) -> String {
+        format!(
+            "{}(string{}{});",
+            &self.name,
+            if 0 == self.value.arguments.0.len() {
+                ""
+            } else {
+                ", "
+            },
+            format_arguments_call(&self.value.arguments)
+        )
+    }
 }
 
 impl From<SvgElement> for Part {
@@ -290,6 +276,16 @@ fn format_arguments(args: &Arguments) -> String {
         .collect::<Vec<String>>()
         .join(", ")
 }
+// Turn [`Arguments`] into a cairo function argument call string
+// * `args` - [`&Arguments`]
+//
+fn format_arguments_call(args: &Arguments) -> String {
+    args.0
+        .iter()
+        .map(|(arg_name, _)| arg_name.to_owned())
+        .collect::<Vec<String>>()
+        .join(", ")
+}
 
 impl Display for Part {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -314,7 +310,7 @@ impl Display for Part {
 /// - value - [`&mut String`]
 /// - append = [`&str`]
 ///
-fn append_string(value: &mut String, append: &str) {
+pub fn append_string(value: &mut String, append: &str) {
     for (_, ch) in append.chars().enumerate() {
         write!(value, "{}", ch).expect("should succeed write to string");
     }
@@ -614,7 +610,7 @@ mod tests {
 
     #[test]
     fn test_it_nest_only_g_and_svg() {
-        let input = r#"<svg><g><path d="0 0 0" /><path d="0 0 0" /></g><path d="2 2 2" /><path d="3 3 3" /><text>Test</text><defs><filter /></defs></svg>"#;
+        let input = r#"<svg><g><path d="0 0 0" /><path d="@@starknet_id@@" /></g><path d="@@carbonable_project_id@@" /><path d="3 3 3" /><text>Test</text><defs><filter /></defs></svg>"#;
 
         let mut root_pair = SvgParser::parse(Rule::root, input).unwrap();
         let root = root_pair.next().unwrap();
@@ -622,5 +618,6 @@ mod tests {
         let svg = SvgElement::try_from(root).unwrap();
 
         assert_eq!(2, svg.nodes.len());
+        println!("{}", svg.to_string());
     }
 }
