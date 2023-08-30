@@ -274,12 +274,6 @@ impl From<&SvgElement> for Part {
     }
 }
 
-impl Part {
-    fn merge(&mut self, rhs: &Self) {
-        self.value = self.value.merge(&rhs.value);
-    }
-}
-
 // Turn [`Arguments`] into a cairo function argument string
 // * `args` - [`&Arguments`]
 //
@@ -339,16 +333,6 @@ pub fn append_string(value: &mut String, append: &str) {
 pub struct CairoString {
     inner: String,
     arguments: Arguments,
-}
-impl CairoString {
-    fn merge(&self, rhs: &CairoString) -> CairoString {
-        let mut inner = self.inner.to_string();
-        append_string(&mut inner, &rhs.inner);
-        Self {
-            inner: inner.to_string(),
-            arguments: Arguments::from(inner.as_str()),
-        }
-    }
 }
 
 #[derive(Debug)]
