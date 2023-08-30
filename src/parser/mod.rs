@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::{collections::HashMap, fmt::Display};
 
 use pest::iterators::Pair;
@@ -34,7 +35,7 @@ pub enum SvgElementError {
     NoTag,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SvgElement {
     pub outer: String,
     pub tag: String,
@@ -115,15 +116,17 @@ impl TryFrom<Pair<'_, Rule>> for SvgElement {
 
 impl SvgElement {
     fn get_plain_outer(&self) -> String {
-        self.outer.replace(
-            "{inner_nodes}",
-            &self
-                .nodes
-                .iter()
-                .map(|n| n.get_plain_outer())
-                .collect::<Vec<String>>()
-                .join(""),
-        )
+        let nodes_plain_outer: Vec<String> =
+            self.nodes.iter().map(|n| n.get_plain_outer()).collect();
+
+        self.outer
+            .split("{inner_nodes}")
+            .collect::<Vec<&str>>()
+            .into_iter()
+            .map(|s| s.to_owned())
+            .interleave(nodes_plain_outer)
+            .collect::<Vec<String>>()
+            .join("")
     }
 }
 
@@ -146,6 +149,8 @@ fn node_has_children_to_nest(node: &Pair<Rule>) -> Result<bool, SvgElementError>
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::HashMap, fs::read_to_string};
+
     use crate::parser::{traverse_tree, Rule, SvgParser};
     use pest::{iterators::Pair, Parser};
 
@@ -296,5 +301,46 @@ mod tests {
 
         let svg = SvgElement::try_from(root).unwrap();
         assert_eq!(svg.nodes.len(), 2);
+    }
+
+    impl SvgElement {
+        fn fake(outer: String) -> Self {
+            Self {
+                outer,
+                tag: "fake".to_owned(),
+                attributes: HashMap::new(),
+                nodes: Vec::new(),
+                replacement: HashMap::new(),
+            }
+        }
+        fn add_node(&mut self, node: Self) {
+            self.nodes.push(node);
+        }
+    }
+
+    #[test]
+    fn test_get_plain_outer() {
+        let nested_nested_nested = SvgElement::fake("test".to_owned());
+        let mut nested_nested = SvgElement::fake("this // {inner_nodes} // test".to_owned());
+        nested_nested.add_node(nested_nested_nested);
+        let mut nested = SvgElement::fake("this @@ {inner_nodes} @@ test".to_owned());
+        nested.add_node(nested_nested);
+        let mut parent = SvgElement::fake("Im the {inner_nodes} parent".to_owned());
+        parent.add_node(nested);
+
+        assert_eq!(
+            "Im the this @@ this // test // test @@ test parent",
+            parent.get_plain_outer()
+        );
+
+        let nested_nested_nested = SvgElement::fake("test".to_owned());
+        let mut nested_nested = SvgElement::fake("this // {inner_nodes} // test".to_owned());
+        nested_nested.add_node(nested_nested_nested);
+        let mut nested = SvgElement::fake("this @@ {inner_nodes} @@ test".to_owned());
+        nested.add_node(nested_nested);
+        let mut parent = SvgElement::fake("Im the {inner_nodes} parent {inner_nodes}".to_owned());
+        parent.add_node(nested.clone());
+        parent.add_node(nested);
+        assert_eq!("Im the this @@ this // test // test @@ test parent this @@ this // test // test @@ test", parent.get_plain_outer());
     }
 }

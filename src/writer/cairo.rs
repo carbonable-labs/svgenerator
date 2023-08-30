@@ -454,6 +454,8 @@ impl Display for CairoString {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::read_to_string;
+
     use crate::parser::{Rule, SvgElement, SvgParser};
     use pest::Parser;
     use regex::Regex;
@@ -618,6 +620,23 @@ mod tests {
         let svg = SvgElement::try_from(root).unwrap();
 
         assert_eq!(2, svg.nodes.len());
+        println!("{}", svg.to_string());
+    }
+
+    #[test]
+    fn test_with_real_specified_asset() {
+        let input = read_to_string("./test1.svg")
+            .unwrap()
+            .replace("\n", "")
+            .replace("    ", "");
+
+        let mut root_pair = SvgParser::parse(Rule::root, &input).unwrap();
+        let root = root_pair.next().unwrap();
+
+        let svg = SvgElement::try_from(root).unwrap();
+
+        assert_eq!(1, svg.nodes.len());
+        println!("{:#?}", svg);
         println!("{}", svg.to_string());
     }
 }

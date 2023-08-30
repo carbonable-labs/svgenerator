@@ -1,0 +1,225 @@
+<svg>
+
+  <!-- card -->
+  <g>
+    <rect />
+    <rect />
+    <g>
+      <rect />
+
+      <!-- All panels Text -->
+      <g>
+        <text>
+          <tspan>Carbon units</tspan>
+        </text>
+        <text>
+          <tspan>422 Tons</tspan>
+        </text>
+        <text>
+          <tspan>Ends in</tspan>
+        </text>
+        <text>
+          <tspan>2052</tspan>
+        </text>
+        <text>
+          <tspan>63%</tspan>
+        </text>
+      </g>
+
+      <!-- progress bar -->
+      <path d="M179 269h106" />
+      <path d="M180 269h64" />
+      <rect />
+    </g>
+
+    <!-- lower text -->
+    <g>
+      <text>
+        <tspan>Surface</tspan>
+      </text>
+      <text>
+        <tspan>250m</tspan>
+      </text>
+      <text>
+        <tspan>&#xb2;</tspan>
+      </text>
+      <text>
+        <tspan>Type</tspan>
+      </text>
+      <text>
+        <tspan>ARR</tspan>
+      </text>
+      <text>
+        <tspan>Impact on
+        </tspan>
+      </text>
+      <text>
+        <tspan>3 SDG&#x2019;s</tspan>
+      </text>
+    </g>
+
+    <!-- SDGS -->
+    <rect />
+    <defs>
+      <clipPath>
+        <rect />
+      </clipPath>
+    </defs>
+
+    <g>
+      <svg>
+        <rect />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+      </svg>
+    </g>
+    <rect />
+    <rect />
+    <rect />
+    <rect />
+  </g>
+
+  <!-- Status group -->
+  <g>
+    <rect />
+    <circle />
+    <text>
+      <tspan>Live</tspan>
+    </text>
+    <rect />
+  </g>
+
+  <!-- Main Card text -->
+  <g>
+    <text>
+      <tspan>Banegas Farm</tspan>
+    </text>
+    <text>
+      <tspan>Based in </tspan>
+    </text>
+    <text>
+      <tspan>Costa Rica</tspan>
+    </text>
+    <text>
+      <tspan>By </tspan>
+    </text>
+    <text>
+      <tspan>Corcovado Foundation</tspan>
+    </text>
+    <text>
+      <tspan>Certified by</tspan>
+    </text>
+    <text>
+      <tspan>ERS</tspan>
+    </text>
+  </g>
+
+  <!-- Certifier LOGO bg -->
+  <rect />
+  <!-- logo -->
+  <svg>
+    <g>
+      <path />
+      <path />
+      <path />
+    </g>
+  </svg>
+  <rect />
+
+  <!-- grad border-->
+  <rect />
+
+  <!-- defs -->
+  <defs>
+    <pattern>
+      <use href="#n" transform="matrix(.00258 0 0 .00225 -.37 0)" />
+    </pattern>
+    <pattern>
+      <use href="#o" transform="scale(.00098)" />
+    </pattern>
+    <pattern>
+      <use href="#p" transform="scale(.00065)" />
+    </pattern>
+    <pattern>
+      <use href="#q" transform="scale(.00065)" />
+    </pattern>
+    <pattern>
+      <use href="#r" transform="translate(.08) scale(.0032)" />
+    </pattern>
+
+    <!-- background image -->
+    <image />
+
+    <!-- grads -->
+    <linearGradient>
+      <stop />
+      <stop />
+    </linearGradient>
+    <linearGradient>
+      <stop />
+      <stop />
+    </linearGradient>
+    <linearGradient>
+      <stop />
+      <stop />
+    </linearGradient>
+    <filter>
+      <feFlood />
+      <feColorMatrix />
+      <feMorphology />
+      <feOffset />
+      <feColorMatrix />
+      <feBlend />
+      <feBlend />
+    </filter>
+    <filter>
+      <feFlood />
+      <feColorMatrix />
+      <feOffset />
+      <feGaussianBlur />
+      <feComposite />
+      <feColorMatrix />
+      <feBlend />
+      <feBlend />
+      <feColorMatrix />
+      <feOffset />
+      <feGaussianBlur />
+      <feComposite />
+      <feColorMatrix />
+      <feBlend />
+    </filter>
+    <filter>
+      <feFlood />
+      <feGaussianBlur />
+      <feComposite />
+      <feBlend />
+    </filter>
+    <radialGradient>
+      <stop />
+      <stop />
+      <stop />
+      <stop />
+      <stop />
+      <stop />
+      <stop />
+      <stop />
+    </radialGradient>
+    <clipPath>
+      <rect />
+    </clipPath>
+  </defs>
+</svg>

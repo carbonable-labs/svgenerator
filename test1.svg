@@ -1,0 +1,96 @@
+<svg>
+
+  <!-- card -->
+  <g>
+    <rect />
+    <rect />
+    <g>
+      <rect />
+
+      <!-- All panels Text -->
+      <g>
+        <text>
+          <tspan>Carbon units</tspan>
+        </text>
+        <text>
+          <tspan>422 Tons</tspan>
+        </text>
+        <text>
+          <tspan>Ends in</tspan>
+        </text>
+        <text>
+          <tspan>2052</tspan>
+        </text>
+        <text>
+          <tspan>63%</tspan>
+        </text>
+      </g>
+
+      <!-- progress bar -->
+      <path d="M179 269h106" />
+      <path d="M180 269h64" />
+      <rect />
+    </g>
+
+    <!-- lower text -->
+    <g>
+      <text>
+        <tspan>Surface</tspan>
+      </text>
+      <text>
+        <tspan>250m</tspan>
+      </text>
+      <text>
+        <tspan>&#xb2;</tspan>
+      </text>
+      <text>
+        <tspan>Type</tspan>
+      </text>
+      <text>
+        <tspan>ARR</tspan>
+      </text>
+      <text>
+        <tspan>Impact on
+        </tspan>
+      </text>
+      <text>
+        <tspan>3 SDG&#x2019;s</tspan>
+      </text>
+    </g>
+
+    <!-- SDGS -->
+    <rect />
+    <defs>
+      <clipPath>
+        <rect />
+      </clipPath>
+    </defs>
+
+    <g>
+      <svg>
+        <rect />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+        <path />
+      </svg>
+    </g>
+    <rect />
+    <rect />
+    <rect />
+    <rect />
+</g>
+
+</svg>
