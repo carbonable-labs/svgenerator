@@ -3,7 +3,7 @@ use itertools::Itertools;
 use rand::Rng;
 use regex::Regex;
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fmt::{Display, Write},
 };
 
@@ -16,16 +16,17 @@ impl Display for SvgElement {
             .map(|p| CairoString::from(p))
             .collect();
         let head = Part::build_head_element(self);
-        let mut body = Vec::new();
+        let mut body: BTreeMap<usize, Part> = BTreeMap::new();
 
-        let mut node_iter = self.nodes.iter();
-        while let Some(node) = node_iter.next() {
+        let mut node_iter = self.nodes.iter().enumerate();
+        while let Some((i, node)) = node_iter.next() {
             if !node.nodes.is_empty() {
                 let node_str = node.to_string();
+                body.insert(i, Part::from(node).a_function_call());
                 append_string(&mut prelude, &node_str);
                 continue;
             }
-            body.push(Part::from(node));
+            body.insert(i, Part::from(node));
         }
 
         let function_name = get_function_name_from_part(&body);
@@ -41,19 +42,27 @@ fn {}(ref string: Array<felt252>{}) {{
 }}"#,
             prelude,
             body.iter()
-                .map(|p| p.to_string())
+                .filter(|p| !p.1.as_function_call)
+                .map(|p| p.1.to_string())
                 .collect::<Vec<String>>()
                 .join("\n"),
             head.name.to_string(),
-            print_function_required_arguments(parts.as_slice(), body.as_slice()),
-            print_function_call(parts.as_slice(), function_name.as_slice()),
+            print_function_required_arguments(
+                parts.as_slice(),
+                body.iter()
+                    .filter(|p| !p.1.as_function_call)
+                    .map(|p| p.1)
+                    .collect::<Vec<&Part>>()
+                    .as_slice()
+            ),
+            print_function_call(parts.as_slice(), function_name.as_slice(),),
         )
     }
 }
 
-fn get_function_name_from_part(part: &Vec<Part>) -> Vec<String> {
+fn get_function_name_from_part(part: &BTreeMap<usize, Part>) -> Vec<String> {
     part.iter()
-        .map(|p| p.print_function_call().to_owned())
+        .map(|p| p.1.print_function_call().to_owned())
         .collect()
 }
 
@@ -64,7 +73,7 @@ fn print_function_call(parts: &[CairoString], fn_name: &[String]) -> String {
     calls.collect::<Vec<String>>().join("\n")
 }
 
-fn print_function_required_arguments(parts: &[CairoString], body: &[Part]) -> String {
+fn print_function_required_arguments(parts: &[CairoString], body: &[&Part]) -> String {
     let parts_args: Vec<String> = parts
         .iter()
         .map(|p| format_arguments(&p.arguments))
@@ -171,6 +180,7 @@ impl Display for CairoProgram {
 struct Part {
     name: String,
     value: CairoString,
+    as_function_call: bool,
 }
 
 /// Generates a random integer as a String
@@ -195,6 +205,7 @@ impl Part {
         Self {
             name,
             value: CairoString::from(head.to_owned()),
+            as_function_call: false,
         }
     }
 
@@ -212,6 +223,7 @@ impl Part {
         Self {
             name,
             value: CairoString::from(tail.to_owned()),
+            as_function_call: false,
         }
     }
 
@@ -227,6 +239,11 @@ impl Part {
             format_arguments_call(&self.value.arguments)
         )
     }
+
+    fn a_function_call(mut self) -> Part {
+        self.as_function_call = true;
+        self
+    }
 }
 
 impl From<SvgElement> for Part {
@@ -238,6 +255,7 @@ impl From<SvgElement> for Part {
         Self {
             name,
             value: CairoString::from(value.outer),
+            as_function_call: false,
         }
     }
 }
@@ -251,6 +269,7 @@ impl From<&SvgElement> for Part {
         Self {
             name,
             value: CairoString::from(value.outer.to_owned()),
+            as_function_call: false,
         }
     }
 }
@@ -636,7 +655,6 @@ mod tests {
         let svg = SvgElement::try_from(root).unwrap();
 
         assert_eq!(1, svg.nodes.len());
-        println!("{:#?}", svg);
         println!("{}", svg.to_string());
     }
 }

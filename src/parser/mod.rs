@@ -115,7 +115,7 @@ impl TryFrom<Pair<'_, Rule>> for SvgElement {
 }
 
 impl SvgElement {
-    fn get_plain_outer(&self) -> String {
+    pub fn get_plain_outer(&self) -> String {
         let nodes_plain_outer: Vec<String> =
             self.nodes.iter().map(|n| n.get_plain_outer()).collect();
 
@@ -342,5 +342,19 @@ mod tests {
         parent.add_node(nested.clone());
         parent.add_node(nested);
         assert_eq!("Im the this @@ this // test // test @@ test parent this @@ this // test // test @@ test", parent.get_plain_outer());
+    }
+
+    #[test]
+    fn test_get_plain_outer_svg() {
+        let input = read_to_string("./test1.svg")
+            .unwrap()
+            .replace("\n", "")
+            .replace("    ", "");
+
+        let mut root_pair = SvgParser::parse(Rule::root, &input).unwrap();
+        let root = root_pair.next().unwrap();
+
+        let svg = SvgElement::try_from(root).unwrap();
+        assert_eq!(svg.get_plain_outer(), input);
     }
 }
