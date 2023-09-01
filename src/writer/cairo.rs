@@ -3,7 +3,7 @@ use itertools::Itertools;
 use rand::Rng;
 use regex::Regex;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     fmt::{Display, Write},
 };
 
@@ -22,7 +22,13 @@ impl Display for SvgElement {
         while let Some((i, node)) = node_iter.next() {
             if !node.nodes.is_empty() {
                 let node_str = node.to_string();
-                body.insert(i, Part::from(node).a_function_call());
+                let prelude_fn_name = get_prelude_fn_name(&node_str);
+                body.insert(
+                    i,
+                    Part::from(node)
+                        .with_fn_name(prelude_fn_name)
+                        .a_function_call(),
+                );
                 append_string(&mut prelude, &node_str);
                 continue;
             }
@@ -58,6 +64,18 @@ fn {}(ref string: Array<felt252>{}) {{
             print_function_call(parts.as_slice(), function_name.as_slice(),),
         )
     }
+}
+
+fn get_prelude_fn_name(prelude: &str) -> &str {
+    let re = Regex::new("fn (?P<fn_name>print_[^(]*)").expect("failed to parse out regex");
+    let matches: Vec<regex::Captures> = re.captures_iter(prelude).collect();
+    let name = matches
+        .last()
+        .expect("should have fn name")
+        .name("fn_name")
+        .expect("should have matched")
+        .as_str();
+    name
 }
 
 fn get_function_name_from_part(part: &BTreeMap<usize, Part>) -> Vec<String> {
@@ -176,7 +194,7 @@ impl Display for CairoProgram {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct Part {
     name: String,
     value: CairoString,
@@ -244,6 +262,11 @@ impl Part {
         self.as_function_call = true;
         self
     }
+
+    fn with_fn_name(mut self, name: &str) -> Part {
+        self.name = name.to_owned();
+        self
+    }
 }
 
 impl From<SvgElement> for Part {
@@ -280,7 +303,7 @@ impl From<&SvgElement> for Part {
 fn format_arguments(args: &Arguments) -> String {
     args.0
         .iter()
-        .map(|(arg_name, (arg_type, _))| {
+        .map(|(_, (arg_name, arg_type, _))| {
             let mut arg = arg_name.to_owned();
             append_string(&mut arg, ": ");
             append_string(&mut arg, &arg_type);
@@ -295,7 +318,7 @@ fn format_arguments(args: &Arguments) -> String {
 fn format_arguments_call(args: &Arguments) -> String {
     args.0
         .iter()
-        .map(|(arg_name, _)| arg_name.to_owned())
+        .map(|(_, (arg_name, _, _))| arg_name.to_owned())
         .collect::<Vec<String>>()
         .join(", ")
 }
@@ -329,13 +352,13 @@ pub fn append_string(value: &mut String, append: &str) {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct CairoString {
     inner: String,
     arguments: Arguments,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Position {
     start: usize,
     end: usize,
@@ -349,22 +372,27 @@ impl From<regex::Match<'_>> for Position {
     }
 }
 
-#[derive(Debug)]
-pub struct Arguments(HashMap<String, (String, Position)>);
+#[derive(Debug, Clone)]
+pub struct Arguments(BTreeMap<usize, (String, String, Position)>);
 impl From<&str> for Arguments {
     fn from(value: &str) -> Self {
-        let mut inner = HashMap::new();
+        let mut inner = BTreeMap::new();
         let expr = Regex::new(r"@@(?P<name>[^@@]*)@@").unwrap();
-        for v in expr.captures_iter(value) {
+        for (i, v) in expr.captures_iter(value).enumerate() {
             if let Some(arg_name) = v.name("name") {
                 let full_match = v.get(0).expect("should at least have one match");
                 let args = &arg_name.as_str().split(":").collect::<Vec<&str>>()[..];
                 let arg_name = args[0];
                 let arg_type = if args.len() > 1 { args[1] } else { "felt252" };
 
-                let arg_type = (arg_type.to_owned(), Position::from(full_match));
-
-                inner.insert(arg_name.to_owned(), arg_type);
+                inner.insert(
+                    i,
+                    (
+                        arg_name.to_owned(),
+                        arg_type.to_owned(),
+                        Position::from(full_match),
+                    ),
+                );
             }
         }
         Self(inner)
@@ -419,7 +447,7 @@ impl Display for CairoString {
         let mut arg_names = Vec::new();
         let mut last_pos = 0;
 
-        for (arg_name, (_, pos)) in self.arguments.0.iter() {
+        for (_, (arg_name, _, pos)) in self.arguments.0.iter() {
             let str_part = &self.inner[last_pos..pos.start];
             str_with_args.push(str_part.to_string());
             str_with_args.push(arg_name.to_string());

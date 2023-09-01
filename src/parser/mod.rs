@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::{collections::HashMap, fmt::Display};
+use std::collections::HashMap;
 
 use pest::iterators::Pair;
 use pest_derive::Parser;
@@ -8,20 +8,6 @@ use thiserror::Error;
 #[derive(Parser, Debug)]
 #[grammar = "parser/svg.pest"]
 pub struct SvgParser {}
-
-/// Traverse svg tree and call callback on each iteration
-/// pair - [`Pair<Rule>`] - parsed pair
-/// cb - [`FnOnce(&Pair<Rule>)`] - Callback on which you apply elements
-///
-pub fn traverse_tree<Cb>(pair: Pair<Rule>, previous: Option<&Pair<Rule>>, cb: &mut Cb)
-where
-    Cb: FnMut(&Pair<Rule>, Option<&Pair<Rule>>),
-{
-    cb(&pair, previous);
-    for inner_pair in pair.clone().into_inner() {
-        traverse_tree(inner_pair, Some(&pair), cb);
-    }
-}
 
 #[derive(Error, Debug)]
 pub enum SvgElementError {
@@ -151,10 +137,24 @@ fn node_has_children_to_nest(node: &Pair<Rule>) -> Result<bool, SvgElementError>
 mod tests {
     use std::{collections::HashMap, fs::read_to_string};
 
-    use crate::parser::{traverse_tree, Rule, SvgParser};
+    use crate::parser::{Rule, SvgParser};
     use pest::{iterators::Pair, Parser};
 
     use super::SvgElement;
+
+    /// traverse svg tree and call callback on each iteration
+    /// pair - [`pair<rule>`] - parsed pair
+    /// cb - [`FnOnce(&Pair<Rule>)`] - Callback on which you apply elements
+    ///
+    pub fn traverse_tree<Cb>(pair: Pair<Rule>, previous: Option<&Pair<Rule>>, cb: &mut Cb)
+    where
+        Cb: FnMut(&Pair<Rule>, Option<&Pair<Rule>>),
+    {
+        cb(&pair, previous);
+        for inner_pair in pair.clone().into_inner() {
+            traverse_tree(inner_pair, Some(&pair), cb);
+        }
+    }
 
     #[test]
     fn it_parses_root_attribute() {
