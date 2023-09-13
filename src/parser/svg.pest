@@ -12,7 +12,7 @@ tag = { "animateTransform" | "animateMotion" | "animate" | "a" | "circle" | "cli
 content = { (ASCII_ALPHANUMERIC | PUNCTUATION)+ }
 replacement_token = { "@@" ~ (ASCII_ALPHA | "_")+ ~ "@@" }
 
-children = { ( replacement_token | content ) | single_element+ | nested_element | comment }
+children = { ( replacement_token | content ) | single_element+ | nested_element | comment | style }
 
 attributes = { attribute_item* }
 attribute_item = { attr ~ "=" ~ attr_value }
@@ -28,6 +28,11 @@ char = {
 letter_or_number = @{ ASCII_HEX_DIGIT+ | ASCII_ALPHA+ }
 
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+
+style = { style_tag_start ~ style_body ~ style_tag_end }
+style_tag_start = _{ "<style>" }
+style_tag_end = _{ "</style>" }
+style_body = { (!style_tag_end ~ ANY)* }
 
 comment = { comment_tag_start ~ comment_body ~ comment_tag_end }
 comment_body = { (!comment_tag_end ~ ANY)* }
