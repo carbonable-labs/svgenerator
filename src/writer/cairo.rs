@@ -43,7 +43,8 @@ impl Display for SvgElement {
 
 {}
 
-fn {}(ref string: Array<felt252>{}) {{
+#[inline(always)]
+fn {}(ref svg: Array<felt252>{}) {{
 {}
 }}"#,
             prelude,
@@ -104,9 +105,11 @@ fn print_function_required_arguments(parts: &[CairoString], body: &[&Part]) -> S
         .collect();
 
     let merged_parts: Vec<String> = parts_args.into_iter().interleave(body_args).collect();
+
     if 0 < merged_parts.len() {
-        return format!(", {}", merged_parts.join(", "));
+        return ", data: @Data".to_owned();
     }
+
     "".to_owned()
 }
 
@@ -169,7 +172,7 @@ impl From<&SvgElement> for CairoProgram {
 impl Display for CairoProgram {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut program = String::new();
-        if 2 == self.parts.len() {
+        if 2 <= self.parts.len() {
             let head: String = unsafe { self.parts.get_unchecked(0).to_string() };
             append_string(&mut program, &head);
             append_string(&mut program, "\n");
@@ -208,11 +211,20 @@ fn random_int_string() -> String {
     num.to_string()
 }
 
+fn get_element_name(element: &SvgElement) -> String {
+    let mut name = random_int_string();
+    if element.attributes.contains_key("id") {
+        name = element.attributes["id"].clone();
+    }
+    name
+}
+
 impl Part {
     fn build_head_element(element: &SvgElement) -> Self {
         let mut name = "print_head_".to_owned();
-        append_string(&mut name, &element.tag);
-        append_string(&mut name, &random_int_string());
+        // append_string(&mut name, &element.tag);
+        let suffix = get_element_name(element);
+        append_string(&mut name, &suffix);
 
         let head = element
             .outer
@@ -229,8 +241,9 @@ impl Part {
 
     fn build_tail_element(element: &SvgElement) -> Self {
         let mut name = "print_tail_".to_owned();
-        append_string(&mut name, &element.tag);
-        append_string(&mut name, &random_int_string());
+        // append_string(&mut name, &element.tag);
+        let suffix = get_element_name(element);
+        append_string(&mut name, &suffix);
 
         let tail = element
             .outer
@@ -246,16 +259,7 @@ impl Part {
     }
 
     fn print_function_call(&self) -> String {
-        format!(
-            "{}(string{}{});",
-            &self.name,
-            if 0 == self.value.arguments.0.len() {
-                ""
-            } else {
-                ", "
-            },
-            format_arguments_call(&self.value.arguments)
-        )
+        format!("{}(ref svg, data);", &self.name)
     }
 
     fn a_function_call(mut self) -> Part {
@@ -272,8 +276,9 @@ impl Part {
 impl From<SvgElement> for Part {
     fn from(value: SvgElement) -> Self {
         let mut name = "print_".to_owned();
-        append_string(&mut name, &value.tag);
-        append_string(&mut name, &random_int_string());
+        //append_string(&mut name, &value.tag);
+        let suffix = get_element_name(&value);
+        append_string(&mut name, &suffix);
 
         Self {
             name,
@@ -286,8 +291,9 @@ impl From<SvgElement> for Part {
 impl From<&SvgElement> for Part {
     fn from(value: &SvgElement) -> Self {
         let mut name = "print_".to_owned();
-        append_string(&mut name, &value.tag);
-        append_string(&mut name, &random_int_string());
+        // append_string(&mut name, &value.tag);
+        let suffix = get_element_name(&value);
+        append_string(&mut name, &suffix);
 
         Self {
             name,
@@ -310,33 +316,19 @@ fn format_arguments(args: &Arguments) -> String {
             arg
         })
         .collect::<Vec<String>>()
-        .join(", ")
-}
-// Turn [`Arguments`] into a cairo function argument call string
-// * `args` - [`&Arguments`]
-//
-fn format_arguments_call(args: &Arguments) -> String {
-    args.0
-        .iter()
-        .map(|(_, (arg_name, _, _))| arg_name.to_owned())
-        .collect::<Vec<String>>()
-        .join(", ")
+        .join(", ");
+    String::from("data: Data")
 }
 
 impl Display for Part {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            r#"fn {}(ref string: Array<felt252>{}{}) {{
+            r#"#[inline(always)]
+fn {}(ref svg: Array<felt252>, data: @Data) {{
 {}
 }}"#,
             &self.name,
-            if 0 == self.value.arguments.0.len() {
-                ""
-            } else {
-                ", "
-            },
-            format_arguments(&self.value.arguments),
             self.value.to_string(),
         )
     }
@@ -442,7 +434,7 @@ impl Display for CairoString {
         let mut head = String::from("");
 
         // replace all tokens with a special char to split string at.
-        // add new line with string.append(var);
+        // add new line with string.append(data.var);
         let mut str_with_args = Vec::new();
         let mut arg_names = Vec::new();
         let mut last_pos = 0;
@@ -462,19 +454,54 @@ impl Display for CairoString {
             if 0 != i {
                 head.extend(['\n']);
             }
-            let str_chars = part.chars().collect::<Vec<char>>();
-            let mut str_iter = str_chars.as_slice().chunks(31).enumerate();
-            while let Some((i, str)) = str_iter.next() {
+            // Escape quotes for JSON in Cairo
+            let part = &part.replace('"', "\\\\\"");
+
+            // Make chunks of length at most 31 chars
+            // but don't end with a single backslash
+
+            let chunk_sizes =
+                part.chars()
+                    .collect::<Vec<char>>()
+                    .iter()
+                    .fold(vec![(0, false)], |mut acc, c| {
+                        let (size, prev_escaped) = acc.last_mut().unwrap();
+                        let new_escaped = c == &'\\';
+                        if 31 == *size {
+                            acc.push((1, new_escaped));
+                            acc
+                        } else if 30 == *size && new_escaped && !*prev_escaped {
+                            acc.push((1, new_escaped));
+                            acc
+                        } else if 30 == *size && &' ' == c {
+                            acc.push((1, false));
+                            acc
+                        } else {
+                            *size += 1;
+                            *prev_escaped = new_escaped;
+                            acc
+                        }
+                    });
+
+            let mut nodes = chunk_sizes.iter().enumerate();
+            let mut prev_index = 0;
+
+            while let Some((i, (size, _))) = nodes.next() {
                 if 0 != i {
                     head.extend(['\n']);
                 }
-                head.extend("\tstring.append(".chars());
+
+                let str = part[prev_index..*size + prev_index].chars();
+                prev_index += *size;
                 if !arg_names.contains(part) {
+                    head.extend("\tsvg.append(".chars());
                     head.extend(['\'']);
-                }
-                head.extend(str);
-                if !arg_names.contains(part) {
+                    head.extend(str);
                     head.extend(['\'']);
+                } else {
+                    head.extend("\tsvg.concat(".chars());
+                    head.extend("*data.".chars());
+                    head.extend(str);
                 }
                 head.extend([')', ';']);
             }
@@ -522,8 +549,8 @@ mod tests {
     fn test_to_cairo_string() {
         let input = r#"<svg width="316" height="360" viewBox="0 0 316 360" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"></svg>"#;
 
-        let cairo_string = CairoString::from(input);
-        let expected = "\tstring.append('<svg width=\"316\" height=\"360\" v');\n\tstring.append('iewBox=\"0 0 316 360\" fill=\"none');\n\tstring.append('\" xmlns=\"http://www.w3.org/2000');\n\tstring.append('/svg\" xmlns:xlink=\"http://www.w');\n\tstring.append('3.org/1999/xlink\"></svg>');";
+        let cairo_string: CairoString = CairoString::from(input);
+        let expected = "\tsvg.append('<svg width=\"316\" height=\"360\" v');\n\tsvg.append('iewBox=\"0 0 316 360\" fill=\"none');\n\tsvg.append('\" xmlns=\"http://www.w3.org/2000');\n\tsvg.append('/svg\" xmlns:xlink=\"http://www.w');\n\tsvg.append('3.org/1999/xlink\"></svg>');";
 
         assert_eq!(expected, cairo_string.to_string());
     }
@@ -617,8 +644,8 @@ mod tests {
         let input = "this is a test string @@argument_1@@ with two vars @@argument2@@";
         let arguments = Arguments::from(input);
 
-        assert_eq!(arguments.0.get("argument_1").unwrap().0.as_str(), "felt252");
-        assert_eq!(arguments.0.get("argument2").unwrap().0.as_str(), "felt252");
+        assert_eq!(arguments.0.get(&0).unwrap().0.as_str(), "felt252");
+        assert_eq!(arguments.0.get(&1).unwrap().0.as_str(), "felt252");
     }
 
     #[test]
@@ -626,17 +653,14 @@ mod tests {
         let input = "@@argument1:ConcreteType@@";
         let arguments = Arguments::from(input);
 
-        assert_eq!(
-            arguments.0.get("argument1").unwrap().0.as_str(),
-            "ConcreteType"
-        );
+        assert_eq!(arguments.0.get(&0).unwrap().0.as_str(), "ConcreteType");
     }
 
     #[test]
     fn test_cairo_string_with_arguments() {
         let input = r#"<svg width="@@starknet_id@@"></svg>"#;
         let cairo_string = CairoString::from(input);
-        let expected = "\tstring.append('<svg width=\"');\n\tstring.append(starknet_id);\n\tstring.append('\"></svg>');";
+        let expected = "\tsvg.append('<svg width=\"');\n\tsvg.append(starknet_id);\n\tsvg.append('\"></svg>');";
 
         assert_eq!(expected, cairo_string.to_string());
     }
