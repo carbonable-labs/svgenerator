@@ -89,7 +89,8 @@ fn print_function_call(parts: &[CairoString], fn_name: &[String]) -> String {
     let str_parts: Vec<String> = parts.iter().map(|p| p.to_string()).collect();
     let fn_calls: Vec<String> = fn_name.iter().map(|f| format!("\t{}", f)).collect();
     let calls = str_parts.into_iter().interleave(fn_calls);
-    calls.collect::<Vec<String>>().join("\n")
+    let res = calls.collect::<Vec<String>>().join("\n");
+    res
 }
 
 fn print_function_required_arguments(parts: &[CairoString], body: &[&Part]) -> String {
@@ -441,14 +442,21 @@ impl Display for CairoString {
 
         for (_, (arg_name, _, pos)) in self.arguments.0.iter() {
             let str_part = &self.inner[last_pos..pos.start];
-            str_with_args.push(str_part.to_string());
-            str_with_args.push(arg_name.to_string());
+            if str_part.len() != 0 {
+                str_with_args.push(str_part.to_string());
+            }
+            if arg_name.len() != 0 {
+                str_with_args.push(arg_name.to_string());
+            }
+
             last_pos = pos.end;
             arg_names.push(arg_name.to_string());
         }
         // add last str_part
-        let str_part = &self.inner[last_pos..];
-        str_with_args.push(str_part.to_string());
+        if last_pos != self.inner.len() {
+            let str_part = &self.inner[last_pos..];
+            str_with_args.push(str_part.to_string());
+        }
 
         for (i, part) in str_with_args.iter().enumerate() {
             if 0 != i {
@@ -485,7 +493,6 @@ impl Display for CairoString {
 
             let mut nodes = chunk_sizes.iter().enumerate();
             let mut prev_index = 0;
-
             while let Some((i, (size, _))) = nodes.next() {
                 if 0 != i {
                     head.extend(['\n']);
