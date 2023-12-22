@@ -23,16 +23,19 @@ fn main() -> anyhow::Result<()> {
             handle_file(
                 path.expect("should at least have one path"),
                 true,
+                true,
                 ConsoleWriter {},
             )?;
             println!("{:#?}", path);
         }
         Some(("generate", matches)) => {
             let path = matches.get_one::<std::path::PathBuf>("PATH");
-            let escaped = matches.get_flag("escaped");
+            let quote_escape = matches.get_flag("escaped");
+            let html_escape = matches.get_flag("html");
             handle_file(
                 path.expect("should at least have one path"),
-                escaped,
+                quote_escape,
+                html_escape,
                 FileWriter {},
             )?;
             println!("{:#?}", path);
@@ -111,7 +114,12 @@ impl Replacer for Unescape {
 }
 
 /// Handle inputed files
-fn handle_file<P: AsRef<Path>>(path: P, escaped: bool, writer: impl Writer) -> anyhow::Result<()> {
+fn handle_file<P: AsRef<Path>>(
+    path: P,
+    quote_escape: bool,
+    html_escape: bool,
+    writer: impl Writer,
+) -> anyhow::Result<()> {
     let mut unparsed_file = read_to_string(&path)
         .expect("cannot read file")
         .replace("\n", "");
@@ -126,6 +134,10 @@ fn handle_file<P: AsRef<Path>>(path: P, escaped: bool, writer: impl Writer) -> a
     let re = Regex::new(r"@\s+<").unwrap();
     unparsed_file = re.replace_all(&unparsed_file, "@<").to_string();
 
+    if html_escape {
+        let re = Regex::new(r"#").unwrap();
+        unparsed_file = re.replace_all(&unparsed_file, "%23").to_string();
+    }
     let mut parsed = SvgParser::parse(parser::Rule::root, &unparsed_file).unwrap();
     let document = parsed.next().unwrap();
     let svg = SvgElement::try_from(document).unwrap();
@@ -143,7 +155,7 @@ fn handle_file<P: AsRef<Path>>(path: P, escaped: bool, writer: impl Writer) -> a
     let mut contents: String = String::from(header);
     let mut cairo_svg = svg.to_string();
 
-    if !escaped {
+    if !quote_escape {
         let re = Regex::new(r"'(?<s>[^']*)'").unwrap();
         cairo_svg = re.replace_all(&cairo_svg, Unescape {}).to_string();
     }
@@ -180,7 +192,8 @@ fn create_command() -> clap::Command {
                         .value_parser(clap::value_parser!(PathBuf)),
                 )
                 .arg_required_else_help(true)
-                .arg(clap::arg!(-e --escaped "Optionally escape quotes in the output")),
+                .arg(clap::arg!(-e --escaped "Optionally escape quotes"))
+                .arg(clap::arg!(-z --html "Optionally toggle HTML compatibility")),
         )
         .subcommand(
             clap::Command::new("groups")
